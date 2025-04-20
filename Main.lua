@@ -23,7 +23,7 @@ local function sendRiftFoundWebhook(time)
 	local logData = {
 		["embeds"] = { {
 			["title"] = ""..TargetRift.." Rift Found! " .. time .. "s Left!",
-			["description"] = "Rift detected in [Player's](https://www.roblox.com/users/".. LocalPlayer.UserId .."/profile) game.",
+			["description"] = "Rift detected in [Server](https://www.roblox.com/users/".. LocalPlayer.UserId .."/profile)",
 			["color"] = tonumber(0xff4444)
 		} }
 	}
