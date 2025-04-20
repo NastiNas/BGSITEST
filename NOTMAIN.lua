@@ -4,10 +4,10 @@
 queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/NOTMAIN.lua'))()")
 
 -- CONFIG
-local TARGET_RIFT      = "man-egg"
+local TARGET_RIFT      = "event-2"
 local MAX_PAGES        = 5
 local MAX_PLAYERS      = 10
-local REFRESH_INTERVAL = 20 * 60   -- 20 minutes
+local REFRESH_INTERVAL = 10 * 60   -- now 10 minutes
 
 -- SERVICES
 local Players     = game:GetService("Players")
@@ -23,7 +23,7 @@ local CACHE_DIR      = "riftHopCache"
 local SERVERS_FILE   = CACHE_DIR.."/servers.json"
 local TIMESTAMP_FILE = CACHE_DIR.."/timestamp.txt"
 
--- make sure our cache exists
+-- ensure cache folder & files exist
 pcall(function()
     if not isfolder(CACHE_DIR) then makefolder(CACHE_DIR) end
     if not isfile(SERVERS_FILE) then writefile(SERVERS_FILE, "[]") end
@@ -111,7 +111,7 @@ local function getServerList(): {string}
     end
 end
 
--- 5) pick a server & hop
+-- 5) pick a server, remove it from the cache, then hop
 local function autoHop()
     print("[DEBUG] → autoHop()")
     local list = getServerList()
@@ -120,8 +120,22 @@ local function autoHop()
         task.wait(5)
         return autoHop()
     end
+
+    -- pick one
     local choice = list[math.random(1,#list)]
     print("[DEBUG] → chosen server:", choice)
+
+    -- remove it from our cached list
+    local remaining = {}
+    for _, sid in ipairs(list) do
+        if sid ~= choice then
+            table.insert(remaining, sid)
+        end
+    end
+    writefile(SERVERS_FILE, HttpService:JSONEncode(remaining))
+    print("[DEBUG] → removed", choice, "from cache; remaining:", #remaining)
+
+    -- teleport now
     safeTeleport(choice)
 end
 
