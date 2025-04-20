@@ -60,43 +60,46 @@ end
 local function autohop()
     local success = false
     while not success do
-        local req = httprequest({
-            Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100&excludeFullGames=true", PlaceId)
-        })
+        if httprequest then
+            local servers = {}
+            local req = httprequest({
+                Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true", PlaceId)
+            })
 
-        local body = HttpService:JSONDecode(req.Body)
-        local servers = {}
+            local body = HttpService:JSONDecode(req.Body)
 
-        if body and body.data then
-            for _, v in ipairs(body.data) do
-                if typeof(v) == "table" and tonumber(v.playing) and tonumber(v.maxPlayers) and v.playing < v.maxPlayers and v.id ~= JobId then
-                    table.insert(servers, v.id)
+            if body and body.data then
+                for i, v in next, body.data do
+                    if type(v) == "table" and tonumber(v.playing) and tonumber(v.maxPlayers) and v.playing < v.maxPlayers and v.id ~= JobId then
+                        table.insert(servers, v.id)
+                    end
                 end
             end
-        end
 
-        if #servers > 0 then
-            for i = #servers, 2, -1 do
-                local j = math.random(1, i)
-                servers[i], servers[j] = servers[j], servers[i]
-            end
+            if #servers > 0 then
+                for i = #servers, 2, -1 do
+                    local j = math.random(1, i)
+                    servers[i], servers[j] = servers[j], servers[i]
+                end
 
-            -- Try each server until one works
-            for _, serverId in ipairs(servers) do
-                local success, err = pcall(function()
-                    TeleportService:TeleportToPlaceInstance(PlaceId, serverId, Players.LocalPlayer)
+                local target = servers[math.random(1, #servers)]
+                local worked, err = pcall(function()
+                    TeleportService:TeleportToPlaceInstance(PlaceId, target, Players.LocalPlayer)
                 end)
 
-                if success then
-                    return
+                if worked then
+                    success = true
                 else
-                    warn("Failed to teleport: ", err)
+                    warn("Teleport failed:", err)
                     wait(1)
                 end
+            else
+                warn("Couldn't find a valid server. Retrying...")
+                wait(2)
             end
         else
-            warn("No servers found. Retrying...")
-            wait(3)
+            warn("Exploit does not support 'httprequest'.")
+            break
         end
     end
 end
