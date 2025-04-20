@@ -61,7 +61,7 @@ local function autoHop()
 	local servers = {}
 	local pagesChecked = 0
 	local cursor = ""
-	local maxPages = 1
+	local maxPages = 5
 
 	while pagesChecked < maxPages do
 		local url = string.format(
@@ -79,9 +79,7 @@ local function autoHop()
 
 			if body and body.data and typeof(body.data) == "table" and #body.data > 0 then
 				for _, server in ipairs(body.data) do
-                print(server.playing)
 					if tonumber(server.playing) <= 10 and server.id ~= jobId then
-                        print(server.id)
 						table.insert(servers, server.id)
 					end
 				end
@@ -89,12 +87,11 @@ local function autoHop()
 				pagesChecked += 1
 				if body.nextPageCursor then
 					cursor = body.nextPageCursor
-					task.wait(2.5) -- 🕓 Slow down between pages
+					task.wait(1)
 				else
 					break
 				end
 			elseif body.errors then
-				-- ⛔ Handle rate limit
 				for _, err in ipairs(body.errors) do
 					if err.message == "Too many requests" then
 						warn("Rate limited. Waiting 5 seconds before retrying...")
