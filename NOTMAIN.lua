@@ -41,7 +41,7 @@ local is_file      = isfile      or isFile      or (syn and syn.is_file)
 math.randomseed(tick())
 
 -- queue script on teleport so it auto‑reloads on each server hop
-queue_on_teleport("https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/NOTMAIN.lua")
+queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/NOTMAIN.lua'))()")
 
 ----------------------------------------------------------------
 -- WEBHOOK
