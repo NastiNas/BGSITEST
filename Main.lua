@@ -1,4 +1,3 @@
--- ✅ Rift Finder Script (Self-Repeating)
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
@@ -7,13 +6,16 @@ local RiftFolder = workspace:WaitForChild("Rendered"):WaitForChild("Rifts")
 local placeId = game.PlaceId
 local jobId = game.JobId
 
-local WEBHOOK_URL = "https://discord.com/api/webhooks/..." -- your webhook here
+
+local whh1 = "1363337687406346391/wYzR7TTmB1coshGGzcOjQUQ"
+local whh2 =  "-WBHy7jS-R29TyglyA7Inj6UpUhYMY3w2VmHtcXBkbY94"
+local WEBHOOK_URL = "https://discord.com/api/webhooks/"..whh1..whh2 -- your webhook here
 local serverLink = string.format("https://www.roblox.com/games/%d/My-Game?jobId=%s", placeId, jobId)
 
--- 🔁 REQUEUE SELF
+
 queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/Main.lua'))()")
 
--- 📨 Send webhook alert
+
 local function sendRiftFoundWebhook(time)
 	local logData = {
 		["embeds"] = { {
@@ -34,7 +36,6 @@ local function sendRiftFoundWebhook(time)
 	end
 end
 
--- 🧠 Check for Rift
 local function checkForRift()
 	for _, rift in ipairs(RiftFolder:GetChildren()) do
 		if rift:FindFirstChild("EggPlatformSpawn") and rift.Name == "man-egg" then
@@ -45,8 +46,8 @@ local function checkForRift()
 			print("[!] Rift Found")
 			sendRiftFoundWebhook(timeLeft)
 
-			-- ⏳ Wait for despawn
 			repeat task.wait(1) until not rift.Parent or not rift:IsDescendantOf(workspace)
+            print("Rift Despawned, re-hopping...")
 			return true
 		end
 	end
@@ -55,6 +56,7 @@ end
 
 -- 🔄 Auto Server Hop Logic
 local function autoHop()
+    print("Attempting to hop...")
 	local servers = {}
 	local req = http_request({
 		Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true", placeId)
@@ -73,13 +75,14 @@ local function autoHop()
 		local chosen = servers[math.random(1, #servers)]
 		TeleportService:TeleportToPlaceInstance(placeId, chosen, LocalPlayer)
 	else
+        print("Retrying autohop")
 		task.wait(1)
 		autoHop()
 	end
 end
 
--- 🚀 MAIN LOOP
 local function start()
+    print("Started")
 	repeat task.wait() until game:IsLoaded()
 	task.wait(5)
 	local found = checkForRift()
