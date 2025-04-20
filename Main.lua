@@ -1,3 +1,6 @@
+local TargetRift = "event-2"
+
+
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
@@ -19,7 +22,7 @@ queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/Na
 local function sendRiftFoundWebhook(time)
 	local logData = {
 		["embeds"] = { {
-			["title"] = "Rift Found! " .. time .. "s Left!",
+			["title"] = ""..TargetRift.." Rift Found! " .. time .. "s Left!",
 			["description"] = "Rift detected in server.\n[View Profile](https://www.roblox.com/users/".. LocalPlayer.UserId .."/profile)",
 			["color"] = tonumber(0xff4444)
 		} }
@@ -38,7 +41,7 @@ end
 
 local function checkForRift()
 	for _, rift in ipairs(RiftFolder:GetChildren()) do
-		if rift:FindFirstChild("EggPlatformSpawn") and rift.Name == "man-egg" then
+		if rift:FindFirstChild("EggPlatformSpawn") and rift.Name == TargetRift then
 			local display = rift:FindFirstChild("Display")
 			local surfaceGui = display and display:FindFirstChild("SurfaceGui")
 			local timer = surfaceGui and surfaceGui:FindFirstChild("Timer")
