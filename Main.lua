@@ -57,32 +57,50 @@ local function checkForRift()
 	return false
 end
 
--- 🔄 Auto Server Hop Logic
-local function autoHop()
-    print("Attempting to hop...")
-	local servers = {}
-	local req = http_request({
-		Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true", placeId)
-	})
-	local body = HttpService:JSONDecode(req.Body)
+local function autohop()
+    local success = false
+    while not success do
+        local req = httprequest({
+            Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100&excludeFullGames=true", PlaceId)
+        })
 
-	if body and body.data then
-		for _, v in ipairs(body.data) do
-			if tonumber(v.playing) < tonumber(v.maxPlayers) and v.id ~= jobId then
-				table.insert(servers, v.id)
-			end
-		end
-	end
+        local body = HttpService:JSONDecode(req.Body)
+        local servers = {}
 
-	if #servers > 0 then
-		local chosen = servers[math.random(1, #servers)]
-		TeleportService:TeleportToPlaceInstance(placeId, chosen, LocalPlayer)
-	else
-        print("Retrying autohop")
-		task.wait(1)
-		autoHop()
-	end
+        if body and body.data then
+            for _, v in ipairs(body.data) do
+                if typeof(v) == "table" and tonumber(v.playing) and tonumber(v.maxPlayers) and v.playing < v.maxPlayers and v.id ~= JobId then
+                    table.insert(servers, v.id)
+                end
+            end
+        end
+
+        if #servers > 0 then
+            for i = #servers, 2, -1 do
+                local j = math.random(1, i)
+                servers[i], servers[j] = servers[j], servers[i]
+            end
+
+            -- Try each server until one works
+            for _, serverId in ipairs(servers) do
+                local success, err = pcall(function()
+                    TeleportService:TeleportToPlaceInstance(PlaceId, serverId, Players.LocalPlayer)
+                end)
+
+                if success then
+                    return
+                else
+                    warn("Failed to teleport: ", err)
+                    wait(1)
+                end
+            end
+        else
+            warn("No servers found. Retrying...")
+            wait(3)
+        end
+    end
 end
+
 
 local function start()
     print("Started, Actively Searching For ".. TargetRift)
