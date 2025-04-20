@@ -1,11 +1,3 @@
---[[
-  Rift Scanner / Auto‑Hop Script
-  - Stores up to 5 pages of ≤10‑player servers in a local file.
-  - Background thread refreshes the file every 2min.
-  - On each hop, reads the file and teleports to a random server from it.
-  - If a Rift named `TargetRift` is found, fires your Discord webhook.
-  - Persists across teleports via queue_on_teleport.
---]]
 
 ----------------------------------------------------------------
 -- CONFIG
@@ -50,10 +42,7 @@ local function sendRiftFoundWebhook(timeLeft)
     local payload = {
         embeds = {{
             title       = TargetRift.." Rift Found! "..timeLeft.." Left!",
-            description = "Rift detected in [Server]("..string.format(
-                                "https://www.roblox.com/games/%d/My-Game?jobId=%s",
-                                placeId, jobId
-                            )..")",
+            description = "Rift detected in [Server](https://www.roblox.com/users/".. LocalPlayer.UserId .."/profile)",
             color       = 0xff4444,
         }}
     }
@@ -95,6 +84,7 @@ end
 -- SERVER LIST COLLECTION
 ----------------------------------------------------------------
 local function collectServers()
+    print("Staring Server Collection")
     local collected, pagesChecked, cursor = {}, 0, ""
     local maxPages = 5
 
@@ -204,11 +194,12 @@ end
 -- STARTUP
 ----------------------------------------------------------------
 local function start()
-    print("Started, actively searching for Rift:", TargetRift)
+    print("Started, actively searching for Rift: ", TargetRift)
     repeat task.wait() until game:IsLoaded()
     task.wait(5)
 
     if not checkForRift() then
+        print("No Rift found; hopping servers...")
         autoHop()
     end
 end
