@@ -83,9 +83,11 @@ local function autoHop()
 			pagesChecked += 1
 			task.wait(0.1)
 			
-			if not cursor then
-                print("broken")
-                break 
+			if body.nextPageCursor then
+				cursor = body.nextPageCursor
+			else
+				break 
+			end
             end
 		else
 			warn("Failed to get server list, retrying...")
