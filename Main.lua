@@ -59,16 +59,34 @@ end
 
 local function autoHop()
 	local servers = {}
-	local req = http_request({
-		Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true", placeId)
-	})
-	local body = HttpService:JSONDecode(req.Body)
+	local pagesChecked = 0
+	local cursor = nil
+	local maxPages = 20
 
-	if body and body.data then
-		for _, v in ipairs(body.data) do
-			if tonumber(v.playing) < tonumber(v.maxPlayers) and v.id ~= jobId then
-				table.insert(servers, v.id)
+	while pagesChecked < maxPages do
+		local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true%s", placeId, cursor and "&cursor=" .. cursor or "")
+		local success, response = pcall(function()
+			return http_request({ Url = url })
+		end)
+
+		if success and response and response.Body then
+			local body = HttpService:JSONDecode(response.Body)
+			if body and body.data then
+				for _, v in ipairs(body.data) do
+					if tonumber(v.playing) < 10 and v.id ~= jobId then
+						table.insert(servers, v.id)
+					end
+				end
 			end
+
+			cursor = body.nextPageCursor
+			pagesChecked += 1
+			task.wait(0.1)
+			
+			if not cursor then break end
+		else
+			warn("Failed to get server list, retrying...")
+			task.wait(1)
 		end
 	end
 
@@ -76,10 +94,12 @@ local function autoHop()
 		local chosen = servers[math.random(1, #servers)]
 		TeleportService:TeleportToPlaceInstance(placeId, chosen, LocalPlayer)
 	else
+		warn("No servers found, retrying in 1s...")
 		task.wait(1)
 		autoHop()
 	end
 end
+
 
 
 local function start()
