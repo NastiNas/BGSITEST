@@ -1,11 +1,12 @@
 --!strict
+-- ensure this runs again after each hop
+queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/NOTMAIN.lua'))()")
+
 -- CONFIG
 local TARGET_RIFT      = "man-egg"
 local MAX_PAGES        = 5
 local MAX_PLAYERS      = 10
 local REFRESH_INTERVAL = 20 * 60   -- 20 minutes
-local RATE_LIMIT_DELAY = 60        -- 1 minute when rate-limited
-local NORMAL_DELAY     = 30        -- 30 seconds otherwise
 
 -- WEBHOOK
 local WH_PART1      = "1363337687406346391/wYzR7TTmB1coshGGzcOjQUQ"
@@ -22,21 +23,15 @@ local LocalPlayer = Players.LocalPlayer
 local RiftFolder  = workspace:WaitForChild("Rendered"):WaitForChild("Rifts")
 local PLACE_ID    = game.PlaceId
 
--- CACHE
+-- CACHE FILES
 local CACHE_DIR      = "riftHopCache"
 local SERVERS_FILE   = CACHE_DIR.."/servers.json"
 local TIMESTAMP_FILE = CACHE_DIR.."/timestamp.txt"
 
 pcall(function()
-    if not isfolder(CACHE_DIR) then 
-        makefolder(CACHE_DIR) 
-    end
-    if not isfile(SERVERS_FILE) then 
-        writefile(SERVERS_FILE, "[]") 
-    end
-    if not isfile(TIMESTAMP_FILE) then 
-        writefile(TIMESTAMP_FILE, "0") 
-    end
+    if not isfolder(CACHE_DIR) then makefolder(CACHE_DIR) end
+    if not isfile(SERVERS_FILE) then writefile(SERVERS_FILE, "[]") end
+    if not isfile(TIMESTAMP_FILE) then writefile(TIMESTAMP_FILE, "0") end
 end)
 
 -- send webhook
@@ -65,13 +60,12 @@ end
 local function checkForRift(): boolean
     for _, rift in ipairs(RiftFolder:GetChildren()) do
         if rift.Name == TARGET_RIFT and rift:FindFirstChild("EggPlatformSpawn") then
-            local timerLbl = rift:FindFirstChild("Display") 
-                and rift.Display:FindFirstChild("SurfaceGui") 
+            local timerLbl = rift:FindFirstChild("Display")
+                and rift.Display:FindFirstChild("SurfaceGui")
                 and rift.Display.SurfaceGui:FindFirstChild("Timer")
             local timeLeft = (timerLbl and timerLbl.Text) or "???"
             print("[!] Rift Found!")
             sendRiftFoundWebhook(timeLeft)
-            -- wait until Rift despawns
             repeat task.wait(1) until not rift:IsDescendantOf(workspace)
             print("Rift despawned, will re-hop...")
             return true
@@ -94,8 +88,7 @@ end
 
 -- FETCH & CACHE SERVERS
 local function fetchServerList(): {string}
-    local servers = {}
-    local cursor = ""
+    local servers, cursor = {}, ""
     for page = 1, MAX_PAGES do
         local url = string.format(
             "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100&excludeFullGames=true%s",
@@ -118,9 +111,8 @@ local function fetchServerList(): {string}
         end
         cursor = body.nextPageCursor or ""
         if cursor == "" then break end
-        task.wait(1)  -- avoid rate limit
+        task.wait(1)
     end
-    -- write to disk
     writefile(SERVERS_FILE, HttpService:JSONEncode(servers))
     writefile(TIMESTAMP_FILE, tostring(os.time()))
     print("Server list cached ("..#servers.." entries)")
@@ -134,11 +126,10 @@ local function getServerList(): {string}
         print("Server cache expired; fetching fresh list...")
         return fetchServerList()
     else
-        local data = readfile(SERVERS_FILE)
-        local ok, tbl = pcall(HttpService.JSONDecode, HttpService, data)
+        local ok, tbl = pcall(HttpService.JSONDecode, HttpService, readfile(SERVERS_FILE))
         if ok and type(tbl) == "table" and #tbl > 0 then
-            print("Loaded server list from cache; next refresh in", 
-                  ((REFRESH_INTERVAL - (os.time()-lastTs))/60), "minutes")
+            print("Loaded server list from cache; next refresh in",
+                  math.floor((REFRESH_INTERVAL - (os.time()-lastTs))/60), "minutes")
             return tbl
         else
             warn("Cache invalid or empty; refetching...")
@@ -156,34 +147,35 @@ local function autoHop()
         task.wait(5)
         return autoHop()
     end
-    local choice = list[math.random(1, #list)]
-    safeTeleport(choice)
+    safeTeleport(list[math.random(1,#list)])
 end
 
--- HANDLING FULL SERVER & UNAUTHORIZED ERROR
-local function handleError(errorMessage: string)
-    if errorMessage:find("teleportgamefull") then
-        print("[DEBUG] Server is full, trying a new server...")
+-- HANDLE FULL / UNAUTHORIZED ERRORS
+local function handleError(msg: string)
+    if msg:find("teleportgamefull") then
+        print("[DEBUG] Server is full, hopping again…")
         return true
-    elseif errorMessage:find("teleportunauthorized") then
-        print("[DEBUG] Unauthorized server, trying a new server...")
+    elseif msg:find("teleportunauthorized") then
+        print("[DEBUG] Unauthorized server, hopping again…")
         return true
-    else
-        return false
     end
+    return false
 end
 
--- MAIN FUNCTION
-local function main()
-    print("Started, actively searching for Rift:", TARGET_RIFT)
-    repeat task.wait() until game:IsLoaded()
-    task.wait(5)
-    
-    -- Check for Rift initially
-    if not checkForRift() then
-        autoHop()
+-- LISTEN FOR CRASH ERRORS
+LogService.MessageOut:Connect(function(message, level)
+    if level == Enum.MessageOutputType.MessageError then
+        if handleError(message:lower()) then
+            task.wait(1)
+            autoHop()
+        end
     end
-end
+end)
 
--- Run the script
-main()
+-- MAIN
+print("Started, actively searching for Rift:", TARGET_RIFT)
+repeat task.wait() until game:IsLoaded()
+task.wait(5)
+if not checkForRift() then
+    autoHop()
+end
