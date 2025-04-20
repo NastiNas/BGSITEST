@@ -54,13 +54,13 @@ local function sendRiftFoundWebhook(timeLeft: string)
             Body    = body
         })
     else
-        warn("[DEBUG] no HTTP function for webhook")
+        warn("["..LocalPlayer.Name.."]".." no HTTP function for webhook")
     end
 end
 
 -- 1) scan for the Rift
 local function checkForRift(): boolean
-    print("[DEBUG] → scanning for Rift…")
+    print("["..LocalPlayer.Name.."]".." → scanning for Rift…")
     for _, rift in ipairs(RiftFolder:GetChildren()) do
         if rift.Name == TARGET_RIFT and rift:FindFirstChild("EggPlatformSpawn") then
             -- grab the timer text if present
@@ -68,33 +68,33 @@ local function checkForRift(): boolean
                              and rift.Display:FindFirstChild("SurfaceGui")
                              and rift.Display.SurfaceGui:FindFirstChild("Timer")
             local timeLeft = (timerLbl and timerLbl.Text) or "???"
-            print("[DEBUG] → FOUND Rift! sending webhook…")
+            print("["..LocalPlayer.Name.."]".." → FOUND Rift! sending webhook…")
             sendRiftFoundWebhook(timeLeft)
             return true
         end
     end
-    print("[DEBUG] → no Rift here.")
+    print("["..LocalPlayer.Name.."]".." → no Rift here.")
     return false
 end
 
 -- 2) safe teleport
 local function safeTeleport(serverId: string)
-    print("[DEBUG] → teleporting to", serverId)
+    print("["..LocalPlayer.Name.."]".." → teleporting to", serverId)
     local ok, err = pcall(function()
         TeleportSvc:TeleportToPlaceInstance(PLACE_ID, serverId)
     end)
     if not ok then
-        warn("[DEBUG] → Teleport failed:", err)
-        print("[DEBUG] → fallback to Teleport()")
+        warn("["..LocalPlayer.Name.."]".." → Teleport failed:", err)
+        print("["..LocalPlayer.Name.."]".." → fallback to Teleport()")
         pcall(function() TeleportSvc:Teleport(PLACE_ID) end)
     else
-        print("[DEBUG] → Teleport call succeeded.")
+        print("["..LocalPlayer.Name.."]".." → Teleport call succeeded.")
     end
 end
 
 -- 3) fetch fresh server list
 local function fetchServerList(): {string}
-    print("[DEBUG] → fetching server list…")
+    print("["..LocalPlayer.Name.."]".."→ fetching server list…")
     local servers, cursor = {}, ""
     for page = 1, MAX_PAGES do
         print(("[DEBUG]   page %d, cursor=%s"):format(page, cursor))
@@ -105,7 +105,7 @@ local function fetchServerList(): {string}
             return ((http and http.request) or request or (syn and syn.request))({Url=url})
         end)
         if not ok or not resp or not resp.Body then
-            warn("[DEBUG]   failed to fetch page", page)
+            warn("["..LocalPlayer.Name.."]".."   failed to fetch page", page)
             task.wait(2)
             continue
         end
@@ -121,7 +121,7 @@ local function fetchServerList(): {string}
     end
     writefile(SERVERS_FILE, HttpService:JSONEncode(servers))
     writefile(TIMESTAMP_FILE, tostring(os.time()))
-    print(("[DEBUG] → fetched %d servers"):format(#servers))
+    print(("["..LocalPlayer.Name.."]".." → fetched %d servers"):format(#servers))
     return servers
 end
 
@@ -130,16 +130,16 @@ local function getServerList(): {string}
     print("[DEBUG] → loading server list (cache check)…")
     local lastTs = tonumber(readfile(TIMESTAMP_FILE)) or 0
     if os.time() - lastTs >= REFRESH_INTERVAL then
-        print("[DEBUG] → cache expired")
+        print("["..LocalPlayer.Name.."]".." → cache expired")
         return fetchServerList()
     else
         local data = readfile(SERVERS_FILE)
         local ok, tbl = pcall(HttpService.JSONDecode, HttpService, data)
         if ok and type(tbl)=="table" and #tbl>0 then
-            print(("[DEBUG] → loaded %d servers from cache"):format(#tbl))
+            print(("["..LocalPlayer.Name.."]".." → loaded %d servers from cache"):format(#tbl))
             return tbl
         else
-            warn("[DEBUG] → cache invalid")
+            warn("["..LocalPlayer.Name.."]".." → cache invalid")
             return fetchServerList()
         end
     end
@@ -147,16 +147,16 @@ end
 
 -- 5) pick a server, remove it from cache, then hop
 local function autoHop()
-    print("[DEBUG] → autoHop()")
+    print("["..LocalPlayer.Name.."]".." → autoHop()")
     local list = getServerList()
     if #list == 0 then
-        warn("[DEBUG] → no servers found, retrying in 5s")
+        warn("["..LocalPlayer.Name.."]".." → no servers found, retrying in 5s")
         task.wait(5)
         return autoHop()
     end
 
     local choice = list[math.random(1,#list)]
-    print("[DEBUG] → chosen server:", choice)
+    print("["..LocalPlayer.Name.."]".." → chosen server:", choice)
 
     -- remove it from our cached list
     local remaining = {}
@@ -164,19 +164,19 @@ local function autoHop()
         if sid ~= choice then table.insert(remaining, sid) end
     end
     writefile(SERVERS_FILE, HttpService:JSONEncode(remaining))
-    print("[DEBUG] → removed", choice, "from cache; remaining:", #remaining)
+    print("["..LocalPlayer.Name.."]".." → removed", choice, "from cache; remaining:", #remaining)
 
     safeTeleport(choice)
 end
 
 -- MAIN
-print("[DEBUG] script started, target Rift:", TARGET_RIFT)
+print("["..LocalPlayer.Name.."]".." script started, target Rift:", TARGET_RIFT)
 repeat task.wait() until game:IsLoaded()
 task.wait(5)
 
 if checkForRift() then
-    print("[DEBUG] → Rift present at launch, stopping.")
+    print("["..LocalPlayer.Name.."]".." → Rift present at launch, stopping.")
 else
-    print("[DEBUG] → no Rift → autoHop()")
+    print("["..LocalPlayer.Name.."]".." → no Rift → autoHop()")
     autoHop()
 end
