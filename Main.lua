@@ -61,7 +61,7 @@ local function autoHop()
 	local servers = {}
 	local pagesChecked = 0
 	local cursor = ""
-	local maxPages = 5
+	local maxPages = 2
 
 	while pagesChecked < maxPages do
 		local url = string.format(
