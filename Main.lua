@@ -12,7 +12,7 @@ local jobId = game.JobId
 
 local whh1 = "1363337687406346391/wYzR7TTmB1coshGGzcOjQUQ"
 local whh2 =  "-WBHy7jS-R29TyglyA7Inj6UpUhYMY3w2VmHtcXBkbY94"
-local WEBHOOK_URL = "https://discord.com/api/webhooks/"..whh1..whh2 -- your webhook here
+local WEBHOOK_URL = "https://discord.com/api/webhooks/"..whh1..whh2 
 local serverLink = string.format("https://www.roblox.com/games/%d/My-Game?jobId=%s", placeId, jobId)
 
 
