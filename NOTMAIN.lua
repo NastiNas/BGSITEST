@@ -40,7 +40,7 @@ local function sendRiftFoundWebhook(timeLeft: string)
     local payload = {
         embeds = {{
             title       = TARGET_RIFT.." Rift Found! "..timeLeft.." left!",
-            description = "Detected by **"..LocalPlayer.Name.."**",
+            description = "Rift detected in [Server](https://www.roblox.com/users/".. LocalPlayer.UserId .."/profile)",
             color       = 0xFF4444
         }}
     }
