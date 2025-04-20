@@ -140,4 +140,54 @@ end
 local function getServerList(): {string}
     -- safe read timestamp
     local lastTs = 0
-    local okTs, tsStr = p
+    local okTs, tsStr = pcall(readfile, TIMESTAMP_FILE)
+    if okTs then
+        lastTs = tonumber(tsStr) or 0
+    end
+
+    if os.time() - lastTs >= REFRESH_INTERVAL then
+        print("Server cache expired; fetching fresh list...")
+        return fetchServerList()
+    else
+        local okFile, data = pcall(readfile, SERVERS_FILE)
+        if okFile then
+            local okDec, tbl = pcall(HttpService.JSONDecode, HttpService, data)
+            if okDec and type(tbl) == "table" and #tbl > 0 then
+                print("Loaded server list from cache; next refresh in",
+                      math.floor((REFRESH_INTERVAL - (os.time() - lastTs)) / 60),
+                      "minutes")
+                return tbl
+            end
+        end
+        warn("Cache invalid or read error; refetching...")
+        return fetchServerList()
+    end
+end
+
+-- AUTO-HOP
+local function autoHop()
+    print("No Rift found; preparing to hop...")
+    local ok, list = pcall(getServerList)
+    if not ok or type(list) ~= "table" then
+        warn("getServerList failed; forcing fresh fetch")
+        list = fetchServerList() or {}
+    end
+
+    if #list == 0 then
+        warn("Server list empty; retrying in 5s...")
+        task.wait(5)
+        return autoHop()
+    end
+
+    local choice = list[math.random(1, #list)]
+    safeTeleport(choice)
+end
+
+-- MAIN
+queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/NOTMAIN.lua'))()")
+print("Started, actively searching for Rift:", TARGET_RIFT)
+repeat task.wait() until game:IsLoaded()
+task.wait(5)
+if not checkForRift() then
+    autoHop()
+end
