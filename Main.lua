@@ -1,4 +1,5 @@
--- RIFT SCANNER & AUTO SERVERHOP
+print("Loaded Script")
+wait(1)
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
