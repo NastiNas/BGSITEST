@@ -60,38 +60,54 @@ end
 local function autoHop()
 	local servers = {}
 	local pagesChecked = 0
-	local cursor = nil
-	local maxPages = 20
+	local cursor = ""
+	local maxPages = 1
 
 	while pagesChecked < maxPages do
-		local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true%s", placeId, cursor and "&cursor=" .. cursor or "")
+		local url = string.format(
+			"https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100&excludeFullGames=true%s",
+			placeId,
+			cursor ~= "" and ("&cursor=" .. cursor) or ""
+		)
+
 		local success, response = pcall(function()
 			return http_request({ Url = url })
 		end)
 
 		if success and response and response.Body then
 			local body = HttpService:JSONDecode(response.Body)
-			if body and body.data then
-				for _, v in ipairs(body.data) do
-					if tonumber(v.playing) < tonumber(v.maxPlayers) - 2 and v.id ~= jobId then
-						table.insert(servers, v.id)
+
+			if body and body.data and typeof(body.data) == "table" and #body.data > 0 then
+				for _, server in ipairs(body.data) do
+                print(server.playing)
+					if tonumber(server.playing) <= 10 and server.id ~= jobId then
+                        print(server.id)
+						table.insert(servers, server.id)
 					end
 				end
-			end
 
-			cursor = body.nextPageCursor
-			pagesChecked += 1
-			task.wait(0.1)
-			
-			if body.nextPageCursor then
-				cursor = body.nextPageCursor
+				pagesChecked += 1
+				if body.nextPageCursor then
+					cursor = body.nextPageCursor
+					task.wait(2.5) -- 🕓 Slow down between pages
+				else
+					break
+				end
+			elseif body.errors then
+				-- ⛔ Handle rate limit
+				for _, err in ipairs(body.errors) do
+					if err.message == "Too many requests" then
+						warn("Rate limited. Waiting 5 seconds before retrying...")
+						task.wait(5)
+					end
+				end
 			else
-				break 
+				warn("Body data invalid or empty. Retrying...")
+				task.wait(2.5)
 			end
-            end
 		else
-			warn("Failed to get server list, retrying...")
-			task.wait(1)
+			warn("Failed to get server list. Retrying...")
+			task.wait(3)
 		end
 	end
 
@@ -99,11 +115,15 @@ local function autoHop()
 		local chosen = servers[math.random(1, #servers)]
 		TeleportService:TeleportToPlaceInstance(placeId, chosen, LocalPlayer)
 	else
-		warn("No servers found, retrying in 1s...")
-		task.wait(1)
+        for i,v in servers do
+            print(i,v)
+        end
+		warn("No suitable servers found. Retrying in 5s...")
+		task.wait(5)
 		autoHop()
 	end
 end
+
 
 
 
