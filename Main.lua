@@ -73,7 +73,7 @@ local function autoHop()
 			local body = HttpService:JSONDecode(response.Body)
 			if body and body.data then
 				for _, v in ipairs(body.data) do
-					if tonumber(v.playing) < 10 and v.id ~= jobId then
+					if tonumber(v.playing) < tonumber(v.maxPlayers) - 2 and v.id ~= jobId then
 						table.insert(servers, v.id)
 					end
 				end
@@ -83,7 +83,10 @@ local function autoHop()
 			pagesChecked += 1
 			task.wait(0.1)
 			
-			if not cursor then break end
+			if not cursor then
+                print("broken")
+                break 
+            end
 		else
 			warn("Failed to get server list, retrying...")
 			task.wait(1)
