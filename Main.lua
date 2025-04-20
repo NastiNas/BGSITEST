@@ -22,7 +22,7 @@ queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/Na
 local function sendRiftFoundWebhook(time)
 	local logData = {
 		["embeds"] = { {
-			["title"] = ""..TargetRift.." Rift Found! " .. time .. "s Left!",
+			["title"] = ""..TargetRift.." Rift Found! " .. time .. " Left!",
 			["description"] = "Rift detected in [Server](https://www.roblox.com/users/".. LocalPlayer.UserId .."/profile)",
 			["color"] = tonumber(0xff4444)
 		} }
