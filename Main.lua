@@ -138,4 +138,5 @@
     end
 
     -- run it
+    print("yippee")
     startScanning()
