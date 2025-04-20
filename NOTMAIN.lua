@@ -1,5 +1,8 @@
 --!strict
 
+-- queue our loader so it runs on each hop
+queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/NOTMAIN.lua'))()")
+
 -- CONFIG
 local TARGET_RIFT      = "man-egg"
 local MAX_PAGES        = 5
