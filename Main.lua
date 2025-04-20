@@ -39,17 +39,20 @@ local function checkForRift()
 			local surfaceGui = display and display:FindFirstChild("SurfaceGui")
 			local timer = surfaceGui and surfaceGui:FindFirstChild("Timer")
 			local eggName = rift.Name:lower()
-			if eggName == "man-egg" or eggName == "aura egg" or eggName == "rift" then
+			if eggName == "man-egg" then
+				print("Egg Found")
 				sendRiftFoundWebhook(timer and timer.Text or "???")
 				repeat task.wait(1) until not rift.Parent -- Wait for rift to despawn
 				return false
-			end
+			else
+				print("Not Found")
 		end
 	end
 	return true -- Not found
 end
 
 local function serverHop()
+	print("Attempting to Hop Servers")
 	local success = false
 	while not success do
 		local servers = {}
@@ -76,6 +79,7 @@ end
 
 -- Wait until game is fully loaded
 if not game:IsLoaded() then
+	print("Waiting for game to load...")
 	game.Loaded:Wait()
 end
 
