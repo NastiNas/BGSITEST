@@ -4,10 +4,15 @@
 queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/NOTMAIN.lua'))()")
 
 -- CONFIG
-local TARGET_RIFT      = "event-2"
+local TARGET_RIFT      = "man-egg"
 local MAX_PAGES        = 5
 local MAX_PLAYERS      = 10
-local REFRESH_INTERVAL = 10 * 60   -- now 10 minutes
+local REFRESH_INTERVAL = 10 * 60   -- 10 minutes
+
+-- WEBHOOK
+local WH_PART1    = "1363337687406346391/wYzR7TTmB1coshGGzcOjQUQ"
+local WH_PART2    = "-WBHy7jS-R29TyglyA7Inj6UpUhYMY3w2VmHtcXBkbY94"
+local WEBHOOK_URL = "https://discord.com/api/webhooks/"..WH_PART1..WH_PART2
 
 -- SERVICES
 local Players     = game:GetService("Players")
@@ -30,12 +35,41 @@ pcall(function()
     if not isfile(TIMESTAMP_FILE) then writefile(TIMESTAMP_FILE, "0") end
 end)
 
+-- UTIL: send Discord webhook
+local function sendRiftFoundWebhook(timeLeft: string)
+    local payload = {
+        embeds = {{
+            title       = TARGET_RIFT.." Rift Found! "..timeLeft.." left!",
+            description = "Detected by **"..LocalPlayer.Name.."**",
+            color       = 0xFF4444
+        }}
+    }
+    local body = HttpService:JSONEncode(payload)
+    local req = (http and http.request) or request or (syn and syn.request)
+    if req then
+        req({
+            Url     = WEBHOOK_URL,
+            Method  = "POST",
+            Headers = {["Content-Type"]="application/json"},
+            Body    = body
+        })
+    else
+        warn("[DEBUG] no HTTP function for webhook")
+    end
+end
+
 -- 1) scan for the Rift
 local function checkForRift(): boolean
     print("[DEBUG] → scanning for Rift…")
     for _, rift in ipairs(RiftFolder:GetChildren()) do
         if rift.Name == TARGET_RIFT and rift:FindFirstChild("EggPlatformSpawn") then
-            print("[DEBUG] → FOUND Rift!")
+            -- grab the timer text if present
+            local timerLbl = rift:FindFirstChild("Display")
+                             and rift.Display:FindFirstChild("SurfaceGui")
+                             and rift.Display.SurfaceGui:FindFirstChild("Timer")
+            local timeLeft = (timerLbl and timerLbl.Text) or "???"
+            print("[DEBUG] → FOUND Rift! sending webhook…")
+            sendRiftFoundWebhook(timeLeft)
             return true
         end
     end
@@ -51,7 +85,7 @@ local function safeTeleport(serverId: string)
     end)
     if not ok then
         warn("[DEBUG] → Teleport failed:", err)
-        print("[DEBUG] → fallback to simple Teleport()")
+        print("[DEBUG] → fallback to Teleport()")
         pcall(function() TeleportSvc:Teleport(PLACE_ID) end)
     else
         print("[DEBUG] → Teleport call succeeded.")
@@ -66,7 +100,7 @@ local function fetchServerList(): {string}
         print(("[DEBUG]   page %d, cursor=%s"):format(page, cursor))
         local url = ("https://games.roblox.com/v1/games/%d/servers/Public"
             .. "?sortOrder=Asc&limit=100&excludeFullGames=true%s")
-            :format(PLACE_ID, (cursor ~= "" and "&cursor="..cursor) or "")
+            :format(PLACE_ID, (cursor~="" and "&cursor="..cursor) or "")
         local ok, resp = pcall(function()
             return ((http and http.request) or request or (syn and syn.request))({Url=url})
         end)
@@ -101,7 +135,7 @@ local function getServerList(): {string}
     else
         local data = readfile(SERVERS_FILE)
         local ok, tbl = pcall(HttpService.JSONDecode, HttpService, data)
-        if ok and type(tbl) == "table" and #tbl > 0 then
+        if ok and type(tbl)=="table" and #tbl>0 then
             print(("[DEBUG] → loaded %d servers from cache"):format(#tbl))
             return tbl
         else
@@ -111,7 +145,7 @@ local function getServerList(): {string}
     end
 end
 
--- 5) pick a server, remove it from the cache, then hop
+-- 5) pick a server, remove it from cache, then hop
 local function autoHop()
     print("[DEBUG] → autoHop()")
     local list = getServerList()
@@ -121,21 +155,17 @@ local function autoHop()
         return autoHop()
     end
 
-    -- pick one
     local choice = list[math.random(1,#list)]
     print("[DEBUG] → chosen server:", choice)
 
     -- remove it from our cached list
     local remaining = {}
     for _, sid in ipairs(list) do
-        if sid ~= choice then
-            table.insert(remaining, sid)
-        end
+        if sid ~= choice then table.insert(remaining, sid) end
     end
     writefile(SERVERS_FILE, HttpService:JSONEncode(remaining))
     print("[DEBUG] → removed", choice, "from cache; remaining:", #remaining)
 
-    -- teleport now
     safeTeleport(choice)
 end
 
