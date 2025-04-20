@@ -85,7 +85,7 @@ local function autoHop()
 end
 
 local function start()
-    print("Started, Actively Searching For".. TargetRift)
+    print("Started, Actively Searching For ".. TargetRift)
 	repeat task.wait() until game:IsLoaded()
 	task.wait(5)
 	local found = checkForRift()
