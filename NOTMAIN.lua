@@ -1,79 +1,86 @@
 --!strict
 -- CONFIG
-local TARGET_RIFT      = "man-egg"
-local MAX_PAGES        = 5
-local MAX_PLAYERS      = 10
-local REFRESH_INTERVAL = 20 * 60      -- 20 minutes
-local WATCHDOG_TIMEOUT = 30           -- seconds to wait before forcing a hop
+local TARGET_RIFT = "man-egg"
+local MAX_PAGES = 5
+local MAX_PLAYERS = 10
+local REFRESH_INTERVAL = 20 * 60          -- 20 minutes
+
+-- RATE‑LIMIT (allow up to MAX_HOPS teleports per WINDOW seconds)
+local WINDOW       = 5 * 60               -- 5 minutes
+local MAX_HOPS     = 20
+local HISTORY_FILE = "riftHopCache/teleport_history.json"
 
 -- WEBHOOK
-local WH_PART1     = "1363337687406346391/wYzR7TTmB1coshGGzcOjQUQ"
-local WH_PART2     = "-WBHy7jS-R29TyglyA7Inj6UpUhYMY3w2VmHtcXBkbY94"
-local WEBHOOK_URL  = "https://discord.com/api/webhooks/"..WH_PART1..WH_PART2
+local WH_PART1 = "1363337687406346391/wYzR7TTmB1coshGGzcOjQUQ"
+local WH_PART2 = "-WBHy7jS-R29TyglyA7Inj6UpUhYMY3w2VmHtcXBkbY94"
+local WEBHOOK_URL = "https://discord.com/api/webhooks/"..WH_PART1..WH_PART2
 
 -- SERVICES
-local Players     = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-local TeleportSvc = game:GetService("TeleportService")
-local LocalPlayer = Players.LocalPlayer
-local PLACE_ID    = game.PlaceId
+local Players       = game:GetService("Players")
+local HttpService   = game:GetService("HttpService")
+local TeleportSvc   = game:GetService("TeleportService")
+local LocalPlayer   = Players.LocalPlayer
+local RiftFolder    = workspace:WaitForChild("Rendered"):WaitForChild("Rifts")
+local PLACE_ID      = game.PlaceId
 
--- safe WaitForChild
-local function safeWait(parent, name, timeout)
-    local inst = parent:FindFirstChild(name)
-    if inst then return inst end
-    return parent:WaitForChild(name, timeout or 5)
-end
+-- CACHE & HISTORY FILES (uses Synapse-style writefile/readfile/isfile/isfolder/makefolder)
+local CACHE_DIR         = "riftHopCache"
+local SERVERS_FILE      = CACHE_DIR.."/servers.json"
+local TIMESTAMP_FILE    = CACHE_DIR.."/timestamp.txt"
 
--- RIFT FOLDER
-local RiftFolder = safeWait(workspace, "Rendered", 10)
-RiftFolder = RiftFolder and safeWait(RiftFolder, "Rifts", 10)
-if not RiftFolder then error("Could not find workspace.Rendered.Rifts") end
-
--- CACHE FILES
-local CACHE_DIR      = "riftHopCache"
-local SERVERS_FILE   = CACHE_DIR.."/servers.json"
-local TIMESTAMP_FILE = CACHE_DIR.."/timestamp.txt"
+-- ensure cache folder & files exist
 pcall(function()
-    if not isfolder(CACHE_DIR) then makefolder(CACHE_DIR) end
-    if not isfile(SERVERS_FILE) then writefile(SERVERS_FILE, "[]") end
-    if not isfile(TIMESTAMP_FILE) then writefile(TIMESTAMP_FILE, "0") end
+    if not isfolder(CACHE_DIR) then
+        makefolder(CACHE_DIR)
+    end
+    if not isfile(SERVERS_FILE) then
+        writefile(SERVERS_FILE, "[]")
+    end
+    if not isfile(TIMESTAMP_FILE) then
+        writefile(TIMESTAMP_FILE, "0")
+    end
+    if not isfile(HISTORY_FILE) then
+        writefile(HISTORY_FILE, "[]")
+    end
 end)
 
--- STATE FLAGS
-local riftFoundFlag = false
-local fetchStarted  = false
-
--- WEBHOOK SENDER
+-- UTIL: send webhook
 local function sendRiftFoundWebhook(timeLeft: string)
-    local payload = HttpService:JSONEncode({ embeds = {{
-        title       = TARGET_RIFT.." Rift Found! "..timeLeft.." Left!",
-        description = "Detected by "..LocalPlayer.Name,
-        color       = 0xFF4444,
-    }}})
+    local logData = {
+        embeds = { {
+            title       = TARGET_RIFT.." Rift Found! "..timeLeft.." Left!",
+            description = "Rift detected in [Server](https://www.roblox.com/users/"..LocalPlayer.UserId.."/profile)",
+            color       = 0xff4444
+        } }
+    }
+    local encoded = HttpService:JSONEncode(logData)
     local req = (http and http.request) or request or (syn and syn.request)
     if req then
-        req({ Url=WEBHOOK_URL, Method="POST",
-              Headers={["Content-Type"]="application/json"},
-              Body=payload })
+        req({
+            Url     = WEBHOOK_URL,
+            Method  = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body    = encoded
+        })
     else
-        warn("No HTTP function available for webhook")
+        warn("No HTTP request function available for webhook.")
     end
 end
 
--- CHECK FOR RIFT
+-- SCAN FOR RIFT
 local function checkForRift(): boolean
     for _, rift in ipairs(RiftFolder:GetChildren()) do
         if rift.Name == TARGET_RIFT and rift:FindFirstChild("EggPlatformSpawn") then
-            riftFoundFlag = true
-            local lbl = rift:FindFirstChild("Display")
-                      and rift.Display:FindFirstChild("SurfaceGui")
-                      and rift.Display.SurfaceGui:FindFirstChild("Timer")
-            local timeLeft = (lbl and lbl.Text) or "???"
+            local timerLbl = rift
+                :FindFirstChild("Display")
+                and rift.Display:FindFirstChild("SurfaceGui")
+                and rift.Display.SurfaceGui:FindFirstChild("Timer")
+            local timeLeft = (timerLbl and timerLbl.Text) or "???"
             print("[!] Rift Found!")
             sendRiftFoundWebhook(timeLeft)
+            -- wait until Rift despawns
             repeat task.wait(1) until not rift:IsDescendantOf(workspace)
-            print("Rift despawned; will re‑hop…")
+            print("Rift despawned, will re-hop...")
             return true
         end
     end
@@ -87,16 +94,15 @@ local function safeTeleport(serverId: string)
     end)
     print("Teleport attempt to", serverId)
     if not ok then
-        warn("TeleportToPlaceInstance failed:", err, "; falling back")
+        warn("TeleportToPlaceInstance failed:", err, "; falling back to Teleport()")
         pcall(function() TeleportSvc:Teleport(PLACE_ID) end)
     end
 end
 
 -- FETCH & CACHE SERVERS
-local function fetchServerList(): {string}
-    fetchStarted = true
+local function fetchServerList(): { string }
     local servers = {}
-    local cursor  = ""
+    local cursor = ""
     for page = 1, MAX_PAGES do
         local url = string.format(
             "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100&excludeFullGames=true%s",
@@ -107,7 +113,7 @@ local function fetchServerList(): {string}
             return ((http and http.request) or request or (syn and syn.request))({ Url = url })
         end)
         if not ok or not resp or not resp.Body then
-            warn("Failed to fetch servers page", page, "; retrying…")
+            warn("Failed to fetch servers page", page, "; retrying...")
             task.wait(2)
             continue
         end
@@ -119,8 +125,9 @@ local function fetchServerList(): {string}
         end
         cursor = body.nextPageCursor or ""
         if cursor == "" then break end
-        task.wait(1)
+        task.wait(1)  -- avoid rate limit
     end
+    -- write to disk
     writefile(SERVERS_FILE, HttpService:JSONEncode(servers))
     writefile(TIMESTAMP_FILE, tostring(os.time()))
     print("Server list cached ("..#servers.." entries)")
@@ -128,34 +135,75 @@ local function fetchServerList(): {string}
 end
 
 -- GET FROM CACHE OR REFRESH
-local function getServerList(): {string}
+local function getServerList(): { string }
     local lastTs = tonumber(readfile(TIMESTAMP_FILE)) or 0
     if os.time() - lastTs >= REFRESH_INTERVAL then
-        print("Cache expired; fetching fresh list…")
+        print("Server cache expired; fetching fresh list...")
         return fetchServerList()
     else
         local data = readfile(SERVERS_FILE)
         local ok, tbl = pcall(HttpService.JSONDecode, HttpService, data)
         if ok and type(tbl) == "table" and #tbl > 0 then
             print("Loaded server list from cache; next refresh in",
-                  math.floor((REFRESH_INTERVAL - (os.time()-lastTs))/60), "min")
+                  ((REFRESH_INTERVAL - (os.time()-lastTs))/60), "minutes")
             return tbl
         else
-            warn("Cache invalid; refetching…")
+            warn("Cache invalid or empty; refetching...")
             return fetchServerList()
         end
     end
 end
 
--- AUTO‑HOP
+-- TELEPORT RATE‑LIMITER
+local function throttleIfNeeded()
+    local now = os.time()
+    local raw = readfile(HISTORY_FILE)
+    local ok, hist = pcall(HttpService.JSONDecode, HttpService, raw)
+    if not ok or type(hist) ~= "table" then
+        hist = {}
+    end
+
+    -- purge old entries
+    local fresh = {}
+    for _, ts in ipairs(hist) do
+        if now - ts < WINDOW then
+            table.insert(fresh, ts)
+        end
+    end
+
+    if #fresh >= MAX_HOPS then
+        table.sort(fresh)
+        local oldest = fresh[1]
+        local delay  = WINDOW - (now - oldest)
+        print(("Hit %d teleports in %d sec; waiting %d s…"):format(#fresh, WINDOW, delay))
+        task.wait(delay)
+        now = os.time()
+        -- purge again after wait
+        local newer = {}
+        for _, ts in ipairs(fresh) do
+            if now - ts < WINDOW then
+                table.insert(newer, ts)
+            end
+        end
+        fresh = newer
+    end
+
+    -- record this hop
+    table.insert(fresh, now)
+    writefile(HISTORY_FILE, HttpService:JSONEncode(fresh))
+end
+
+-- AUTO‑HOP (with rate‑limiting)
 local function autoHop()
-    print("No Rift found; preparing to hop…")
+    print("No Rift found; preparing to hop...")
     local list = getServerList()
     if #list == 0 then
-        warn("Empty server list; retrying in 5s…")
+        warn("Server list empty; retrying in 5s...")
         task.wait(5)
         return autoHop()
     end
+
+    throttleIfNeeded()
     local choice = list[math.random(1, #list)]
     safeTeleport(choice)
 end
@@ -163,21 +211,8 @@ end
 -- MAIN
 queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/NOTMAIN.lua'))()")
 print("Started, actively searching for Rift:", TARGET_RIFT)
-
--- wait until game is fully loaded
 repeat task.wait() until game:IsLoaded()
 task.wait(5)
-
--- watchdog: if neither a Rift check nor a fetch kicked off in time, re‑hop
-task.spawn(function()
-    task.wait(WATCHDOG_TIMEOUT)
-    if not riftFoundFlag and not fetchStarted then
-        warn("Watchdog timeout — neither Rift found nor list fetch started. Re‑hopping.")
-        autoHop()
-    end
-end)
-
--- initial scan & hop
 if not checkForRift() then
     autoHop()
 end
