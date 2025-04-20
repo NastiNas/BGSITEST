@@ -46,6 +46,7 @@ local function checkForRift()
 				return false
 			else
 				print("Not Found")
+			end
 		end
 	end
 	return true -- Not found
