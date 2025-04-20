@@ -1,13 +1,11 @@
 --!strict
-print("DEBUG: Rift‑hop script initializing…")
-
 -- CONFIG
 local TARGET_RIFT      = "man-egg"
 local MAX_PAGES        = 5
 local MAX_PLAYERS      = 10
-local REFRESH_INTERVAL = 20 * 60   -- 20m
-local RATE_LIMIT_DELAY = 60        -- 1m when rate‑limited
-local NORMAL_DELAY     = 30        -- 30s otherwise
+local REFRESH_INTERVAL = 20 * 60   -- 20 minutes
+local RATE_LIMIT_DELAY = 60        -- 1 minute when rate-limited
+local NORMAL_DELAY     = 30        -- 30 seconds otherwise
 
 -- WEBHOOK
 local WH_PART1      = "1363337687406346391/wYzR7TTmB1coshGGzcOjQUQ"
@@ -31,22 +29,18 @@ local TIMESTAMP_FILE = CACHE_DIR.."/timestamp.txt"
 
 pcall(function()
     if not isfolder(CACHE_DIR) then 
-        print("DEBUG: creating cache folder")
         makefolder(CACHE_DIR) 
     end
     if not isfile(SERVERS_FILE) then 
-        print("DEBUG: creating servers.json")
         writefile(SERVERS_FILE, "[]") 
     end
     if not isfile(TIMESTAMP_FILE) then 
-        print("DEBUG: creating timestamp.txt")
         writefile(TIMESTAMP_FILE, "0") 
     end
 end)
 
 -- send webhook
 local function sendRiftFoundWebhook(timeLeft: string)
-    print("DEBUG: sendRiftFoundWebhook", timeLeft)
     local payload = HttpService:JSONEncode({
         embeds = {{
             title       = TARGET_RIFT.." Rift Found! "..timeLeft.." Left!",
@@ -56,158 +50,140 @@ local function sendRiftFoundWebhook(timeLeft: string)
     })
     local req = (http and http.request) or request or (syn and syn.request)
     if req then
-        req({Url=WEBHOOK_URL, Method="POST",
-             Headers={["Content-Type"]="application/json"},
-             Body=payload})
-        print("DEBUG: webhook sent")
+        req({
+            Url     = WEBHOOK_URL,
+            Method  = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body    = payload
+        })
     else
-        warn("No HTTP request available for webhook.")
+        warn("No HTTP request function available for webhook.")
     end
 end
 
--- scan for rift
+-- SCAN FOR RIFT
 local function checkForRift(): boolean
-    print("DEBUG: checkForRift()")
     for _, rift in ipairs(RiftFolder:GetChildren()) do
-        print("DEBUG: scanning rift:", rift.Name)
         if rift.Name == TARGET_RIFT and rift:FindFirstChild("EggPlatformSpawn") then
-            print("DEBUG: Rift matched target!")
-            local timerLbl = rift:FindFirstChild("Display")
-                           and rift.Display:FindFirstChild("SurfaceGui")
-                           and rift.Display.SurfaceGui:FindFirstChild("Timer")
+            local timerLbl = rift:FindFirstChild("Display") 
+                and rift.Display:FindFirstChild("SurfaceGui") 
+                and rift.Display.SurfaceGui:FindFirstChild("Timer")
             local timeLeft = (timerLbl and timerLbl.Text) or "???"
+            print("[!] Rift Found!")
             sendRiftFoundWebhook(timeLeft)
-            repeat 
-                task.wait(1) 
-            until not rift:IsDescendantOf(workspace)
-            print("DEBUG: Rift despawned, returning true")
+            -- wait until Rift despawns
+            repeat task.wait(1) until not rift:IsDescendantOf(workspace)
+            print("Rift despawned, will re-hop...")
             return true
         end
     end
-    print("DEBUG: checkForRift() → false")
     return false
 end
 
--- safe teleport
+-- SAFE TELEPORT
 local function safeTeleport(serverId: string)
-    print("DEBUG: safeTeleport to", serverId)
     local ok, err = pcall(function()
         TeleportSvc:TeleportToPlaceInstance(PLACE_ID, serverId)
     end)
-    print("DEBUG: TeleportToPlaceInstance pcall ok=", ok)
+    print("Teleport attempt to", serverId)
     if not ok then
-        warn("TeleportToPlaceInstance failed:", err, "; falling back.")
+        warn("TeleportToPlaceInstance failed:", err, "; falling back to Teleport()")
         pcall(function() TeleportSvc:Teleport(PLACE_ID) end)
     end
 end
 
--- fetch server list
+-- FETCH & CACHE SERVERS
 local function fetchServerList(): {string}
-    print("DEBUG: fetchServerList()")
-    local servers, cursor = {}, ""
+    local servers = {}
+    local cursor = ""
     for page = 1, MAX_PAGES do
-        local url = ("https://games.roblox.com/v1/games/%d/servers/Public?"..
-                     "sortOrder=Asc&limit=100&excludeFullGames=true%s")
-                    :format(PLACE_ID,
-                            cursor~="" and "&cursor="..cursor or "")
-        print("DEBUG: requesting page", page, url)
+        local url = string.format(
+            "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100&excludeFullGames=true%s",
+            PLACE_ID,
+            (cursor ~= "" and "&cursor="..cursor) or ""
+        )
         local ok, resp = pcall(function()
             return ((http and http.request) or request or (syn and syn.request))({Url=url})
         end)
-        print("DEBUG: http.request ok=", ok, "resp?", resp and resp.Body ~= nil)
         if not ok or not resp or not resp.Body then
-            warn("Failed page", page, "; retrying…")
+            warn("Failed to fetch servers page", page, "; retrying...")
             task.wait(2)
             continue
         end
         local body = HttpService:JSONDecode(resp.Body)
-        print("DEBUG: page", page, "#data=", #body.data)
         for _, s in ipairs(body.data or {}) do
             if tonumber(s.playing) <= MAX_PLAYERS then
                 table.insert(servers, s.id)
             end
         end
         cursor = body.nextPageCursor or ""
-        print("DEBUG: nextPageCursor →", cursor)
         if cursor == "" then break end
-        task.wait(1)
+        task.wait(1)  -- avoid rate limit
     end
+    -- write to disk
     writefile(SERVERS_FILE, HttpService:JSONEncode(servers))
     writefile(TIMESTAMP_FILE, tostring(os.time()))
-    print("DEBUG: cached "..#servers.." servers")
+    print("Server list cached ("..#servers.." entries)")
     return servers
 end
 
--- get from cache or fetch
+-- GET FROM CACHE OR REFRESH
 local function getServerList(): {string}
-    local now, lastTs = os.time(), tonumber(readfile(TIMESTAMP_FILE)) or 0
-    print("DEBUG: getServerList: now=", now, "lastTs=", lastTs)
-    if now - lastTs >= REFRESH_INTERVAL then
-        print("DEBUG: cache expired → fetch")
+    local lastTs = tonumber(readfile(TIMESTAMP_FILE)) or 0
+    if os.time() - lastTs >= REFRESH_INTERVAL then
+        print("Server cache expired; fetching fresh list...")
         return fetchServerList()
     else
-        print("DEBUG: cache valid for", REFRESH_INTERVAL - (now-lastTs), "s more")
         local data = readfile(SERVERS_FILE)
         local ok, tbl = pcall(HttpService.JSONDecode, HttpService, data)
-        if ok and type(tbl)=="table" and #tbl>0 then
-            print("DEBUG: loaded "..#tbl.." from cache")
+        if ok and type(tbl) == "table" and #tbl > 0 then
+            print("Loaded server list from cache; next refresh in", 
+                  ((REFRESH_INTERVAL - (os.time()-lastTs))/60), "minutes")
             return tbl
         else
-            warn("Cache invalid → refetch")
+            warn("Cache invalid or empty; refetching...")
             return fetchServerList()
         end
     end
 end
 
--- auto‑hop
-local lastHop = 0
-local rateLimited = false
-
+-- AUTO-HOP
 local function autoHop()
-    local now = os.time()
-    local delay = rateLimited and RATE_LIMIT_DELAY or NORMAL_DELAY
-    print(("DEBUG: autoHop() rateLimited=%s, lastHop=%d, now=%d, delay=%d")
-          :format(tostring(rateLimited), lastHop, now, delay))
-    if now - lastHop < delay then
-        local waitTime = delay - (now - lastHop)
-        print("DEBUG: waiting", waitTime, "s before hop")
-        task.wait(waitTime)
-    end
-    print("DEBUG: performing hop")
+    print("No Rift found; preparing to hop...")
     local list = getServerList()
     if #list == 0 then
-        warn("No servers → retry in 5s")
+        warn("Server list empty; retrying in 5s...")
         task.wait(5)
         return autoHop()
     end
-    local choice = list[math.random(1,#list)]
-    print("DEBUG: chosen server", choice)
-    lastHop = os.time()
+    local choice = list[math.random(1, #list)]
     safeTeleport(choice)
 end
 
--- watchdog: catch errors
-LogService.MessageOut:Connect(function(msg, typ)
-    print("DEBUG: MessageOut:", typ.Name, msg)
-    if typ == Enum.MessageType.MessageError then
-        if msg:find("teleportgamefull",1,true)
-        or msg:find("teleporunathorized",1,true) then
-            warn("Detected teleport‑full/unauthorized error → re‑hop")
-            rateLimited = true
-            task.spawn(autoHop)
-        end
+-- HANDLING FULL SERVER & UNAUTHORIZED ERROR
+local function handleError(errorMessage: string)
+    if errorMessage:find("teleportgamefull") then
+        print("[DEBUG] Server is full, trying a new server...")
+        return true
+    elseif errorMessage:find("teleportunauthorized") then
+        print("[DEBUG] Unauthorized server, trying a new server...")
+        return true
+    else
+        return false
     end
-end)
-
--- MAIN
-queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/NOTMAIN.lua'))()")
-print("DEBUG: queued on teleport; waiting for game to load…")
-repeat task.wait() until game:IsLoaded()
-print("DEBUG: game loaded; waiting 5s…")
-task.wait(5)
-
-print("DEBUG: initial Rift check")
-if not checkForRift() then
-    print("DEBUG: no Rift → first autoHop")
-    autoHop()
 end
+
+-- MAIN FUNCTION
+local function main()
+    print("Started, actively searching for Rift:", TARGET_RIFT)
+    repeat task.wait() until game:IsLoaded()
+    task.wait(5)
+    
+    -- Check for Rift initially
+    if not checkForRift() then
+        autoHop()
+    end
+end
+
+-- Run the script
+main()
