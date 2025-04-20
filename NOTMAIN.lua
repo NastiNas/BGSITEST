@@ -159,7 +159,6 @@ local function throttleIfNeeded(): number
                 table.remove(hist, i)
             end
         end
-        -- return positive wait → skip watchdog
         table.insert(hist, now)
         writefile(HISTORY_FILE, HttpService:JSONEncode(hist))
         return waitSec
@@ -170,29 +169,28 @@ local function throttleIfNeeded(): number
     end
 end
 
--- AUTO‑HOP WITH CONDITIONAL WATCHDOG
+-- AUTO‑HOP WITH DYNAMIC WATCHDOG
 local function autoHop()
     print("No Rift found; preparing to hop…")
     local list = getServerList()
-    if #list==0 then
+    if #list == 0 then
         warn("Server list empty; retrying in 5s…")
         task.wait(5)
         return autoHop()
     end
 
     local waited = throttleIfNeeded()
-
-    -- only start watchdog if we did NOT have to wait
     local didHop = false
-    if waited == 0 then
-        task.spawn(function()
-            task.wait(30)
-            if not didHop then
-                warn("Watchdog: teleport didn’t start in 30s, retrying autoHop")
-                autoHop()
-            end
-        end)
-    end
+
+    -- choose watchdog timeout based on rate‑limit
+    local timeout = (waited == 0) and 30 or 60
+    task.spawn(function()
+        task.wait(timeout)
+        if not didHop then
+            warn(("Watchdog: teleport didn’t start in %ds, retrying autoHop"):format(timeout))
+            autoHop()
+        end
+    end)
 
     local choice = list[ math.random(1, #list) ]
     didHop = true
