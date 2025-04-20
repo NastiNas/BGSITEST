@@ -1,4 +1,4 @@
-local TargetRift = "event-2"
+local TargetRift = "man-egg"
 
 
 local Players = game:GetService("Players")
