@@ -13,7 +13,7 @@
     local hookHalf2 = "oshGGzcOjQUQ-WBHy7jS-R29TyglyA7Inj6UpUhYMY3w2VmHtcXBkbY94"
 
     local WEBHOOK_URL     = "https://discord.com/api/webhooks/"..hookHalf1..hookHalf2
-    local RIFT_NAME       = "event-2"
+    local RIFT_NAME       = "man-egg"
 
     local function warnNotify(tag, msg)
         warn(("[%s] %s"):format(tag, msg))
