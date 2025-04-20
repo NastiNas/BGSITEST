@@ -57,51 +57,28 @@ local function checkForRift()
 	return false
 end
 
-local function autohop()
-    local success = false
-    while not success do
-        if httprequest then
-            local servers = {}
-            local req = httprequest({
-                Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true", PlaceId)
-            })
+local function autoHop()
+	local servers = {}
+	local req = http_request({
+		Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true", placeId)
+	})
+	local body = HttpService:JSONDecode(req.Body)
 
-            local body = HttpService:JSONDecode(req.Body)
+	if body and body.data then
+		for _, v in ipairs(body.data) do
+			if tonumber(v.playing) < tonumber(v.maxPlayers) and v.id ~= jobId then
+				table.insert(servers, v.id)
+			end
+		end
+	end
 
-            if body and body.data then
-                for i, v in next, body.data do
-                    if type(v) == "table" and tonumber(v.playing) and tonumber(v.maxPlayers) and v.playing < v.maxPlayers and v.id ~= JobId then
-                        table.insert(servers, v.id)
-                    end
-                end
-            end
-
-            if #servers > 0 then
-                for i = #servers, 2, -1 do
-                    local j = math.random(1, i)
-                    servers[i], servers[j] = servers[j], servers[i]
-                end
-
-                local target = servers[math.random(1, #servers)]
-                local worked, err = pcall(function()
-                    TeleportService:TeleportToPlaceInstance(PlaceId, target, Players.LocalPlayer)
-                end)
-
-                if worked then
-                    success = true
-                else
-                    warn("Teleport failed:", err)
-                    wait(1)
-                end
-            else
-                warn("Couldn't find a valid server. Retrying...")
-                wait(2)
-            end
-        else
-            warn("Exploit does not support 'httprequest'.")
-            break
-        end
-    end
+	if #servers > 0 then
+		local chosen = servers[math.random(1, #servers)]
+		TeleportService:TeleportToPlaceInstance(placeId, chosen, LocalPlayer)
+	else
+		task.wait(1)
+		autoHop()
+	end
 end
 
 
