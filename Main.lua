@@ -23,7 +23,7 @@
         local profileUrl = ("https://www.roblox.com/users/%d/profile"):format(LocalPlayer.UserId)
         local payload = {
             embeds = {{
-                title       = (RIFT_Name.. "Rift Found! %s Left"):format(timeLeft),
+                title       = (""..RIFT_NAME.."Rift Found! %s Left"):format(timeLeft),
                 description = ("Detected: [%s](%s)")
                               :format(LocalPlayer.Name, profileUrl)
             }}
