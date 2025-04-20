@@ -1,31 +1,36 @@
--- Rift Scanner Script (Roblox Executor)
--- Caches server list with 20 min TTL, handles missing data, avoids nil‑length errors.
-
-local TargetRift     = "man-egg"
-local SERVER_FILE    = "rift_servers.json"
-local SERVER_TTL     = 20 * 60  -- seconds
+-- Rift Scanner (all‑in‑one) with cache‑file auto‑creation
+local TargetRift  = "man-egg"
+local SERVER_FILE = "rift_servers.json"
+local SERVER_TTL  = 20 * 60   -- 20 minutes
 
 -- Services
-local Players        = game:GetService("Players")
-local HttpService    = game:GetService("HttpService")
-local TeleportService= game:GetService("TeleportService")
-local LocalPlayer    = Players.LocalPlayer
-local placeId, jobId = game.PlaceId, game.JobId
+local Players         = game:GetService("Players")
+local HttpService     = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local LocalPlayer     = Players.LocalPlayer
+local placeId, jobId  = game.PlaceId, game.JobId
 
--- Discord Webhook
+-- Webhook
 local whh1 = "1363337687406346391/wYzR7TTmB1coshGGzcOjQUQ"
 local whh2 = "-WBHy7jS-R29TyglyA7Inj6UpUhYMY3w2VmHtcXBkbY94"
 local WEBHOOK_URL = "https://discord.com/api/webhooks/"..whh1..whh2
 
--- Auto‑reload the NOTMAIN script on teleport
+-- reload on teleport
 queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/NOTMAIN.lua'))()")
 
--- Simple prefixed logger
-local function log(...)
-    print("[RiftScanner]", ...)
+-- simple logger
+local function log(...) print("[RiftScanner]", ...) end
+
+-- ensure cache file exists
+if type(isfile)=="function" and not isfile(SERVER_FILE) then
+    local init = { timestamp = 0, servers = {} }
+    pcall(function()
+        writefile(SERVER_FILE, HttpService:JSONEncode(init))
+    end)
+    log("Cache file created:", SERVER_FILE)
 end
 
--- Send embed to Discord
+-- Discord embed
 local function sendRiftFoundWebhook(timeLeft)
     local payload = {
         embeds = {{
@@ -37,185 +42,166 @@ local function sendRiftFoundWebhook(timeLeft)
         }}
     }
     local body = HttpService:JSONEncode(payload)
-    local request = http and http.request or request or (syn and syn.request)
-    if request then
-        local ok, err = pcall(function()
-            request({ Url=WEBHOOK_URL, Method="POST",
-                      Headers={["Content-Type"]="application/json"},
-                      Body=body })
+    local req  = http and http.request or request or (syn and syn.request)
+    if req then
+        pcall(function()
+            req{ Url=WEBHOOK_URL, Method="POST",
+                 Headers={["Content-Type"]="application/json"},
+                 Body=body }
         end)
-        if not ok then
-            warn("[RiftScanner] Webhook error:", err)
-        end
     end
 end
 
--- Safe WaitForChild with timeout
-local function safeWait(parent, name, timeout)
-    local found = parent:FindFirstChild(name)
-    if found then return found end
-    local ok, obj = pcall(function()
-        return parent:WaitForChild(name, timeout)
-    end)
-    if ok then return obj end
-    warn("[RiftScanner] Timeout waiting for "..name)
-    return nil
+-- safe WaitForChild
+local function safeWait(parent, name, t)
+    return parent:FindFirstChild(name)
+        or (pcall(function() return parent:WaitForChild(name, t) end) and parent[name])
 end
 
--- Get the Rifts folder safely
-local rendered   = safeWait(workspace, "Rendered", 10)
-local RiftFolder = rendered and safeWait(rendered, "Rifts", 10)
-
--- Load cached servers if still valid
-local function loadSavedServers()
-    if not isfile(SERVER_FILE) then return nil end
-    local ok, content = pcall(readfile, SERVER_FILE)
-    if not ok then warn("[RiftScanner] readfile:", content); return nil end
-    local data = HttpService:JSONDecode(content)
-    if type(data)~="table" or type(data.timestamp)~="number" or type(data.servers)~="table" then
-        return nil
-    end
+-- cache helpers
+local function loadSaved()
+    if type(isfile)~="function" or not isfile(SERVER_FILE) then return nil end
+    local ok, txt = pcall(readfile, SERVER_FILE)
+    if not ok or type(txt)~="string" then return nil end
+    local data = HttpService:JSONDecode(txt)
+    if type(data)~="table"
+    or type(data.timestamp)~="number"
+    or type(data.servers)~="table"
+    then return nil end
     if os.time() - data.timestamp < SERVER_TTL then
-        log("Using cached server list ("..#data.servers.." entries, "..(os.time()-data.timestamp).."s old)")
+        log("Using cached servers:", #data.servers, "entries; age", os.time()-data.timestamp, "s")
         return data.servers
     end
     return nil
 end
 
--- Save servers + timestamp
 local function saveServers(list)
+    if type(list)~="table" then return end
     local data = { timestamp=os.time(), servers=list }
-    local ok, err = pcall(function()
+    pcall(function()
         writefile(SERVER_FILE, HttpService:JSONEncode(data))
     end)
-    if not ok then warn("[RiftScanner] writefile:", err) end
 end
 
--- Fetch up to 5 pages of servers with ≤10 players, safely handles missing data
-local function fetchServerList(maxPages, pageSize)
-    local servers, cursor = {}, ""
-    local http_request = http and http.request or request or (syn and syn.request)
-    for page = 1, maxPages do
+-- fetch up to 5 pages, ≤10 players, skip current
+local function fetchServerList(pages, limit)
+    local out, cursor = {}, ""
+    local req = http and http.request or request or (syn and syn.request)
+    for page=1, pages do
         local url = string.format(
             "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=%d%s",
-            placeId, pageSize,
-            cursor~="" and "&cursor="..cursor or ""
+            placeId, limit,
+            (cursor~="" and "&cursor="..cursor or "")
         )
         local ok, resp = pcall(function()
-            return http_request({Url=url, Method="GET"})
+            return req{ Url=url, Method="GET" }
         end)
-        if not ok or not resp or not resp.Body then
-            warn("[RiftScanner] Fetch page "..page.." failed")
-            break
+        if not ok or not resp or type(resp.Body)~="string" then
+            warn("[RiftScanner] page",page,"fetch failed"); break
         end
 
         local body = HttpService:JSONDecode(resp.Body)
         if type(body)~="table" then
-            warn("[RiftScanner] Invalid response structure on page "..page)
-            break
+            warn("[RiftScanner] invalid JSON on page",page); break
         end
 
         local data = body.data
         if type(data)~="table" or #data == 0 then
-            warn("[RiftScanner] No server data on page "..page)
-            break
+            warn("[RiftScanner] no data on page",page); break
         end
 
-        for _, s in ipairs(data) do
-            if tonumber(s.playing) <= 10 and s.id ~= jobId then
-                table.insert(servers, s.id)
+        for _, srv in ipairs(data) do
+            if tonumber(srv.playing) <= 10 and srv.id ~= jobId then
+                table.insert(out, srv.id)
             end
         end
 
-        if type(body.nextPageCursor) ~= "string" then
+        if type(body.nextPageCursor) ~= "string" or body.nextPageCursor == "" then
             break
         end
-
         cursor = body.nextPageCursor
         task.wait(0.5)
     end
-
-    return servers
+    return out
 end
 
--- Get current server list (cache or fetch+cache)
+-- wrap cache or fresh
 local function getServerList()
-    local saved = loadSavedServers()
-    if saved then return saved end
-
-    log("Cache expired or missing; fetching new server list…")
+    local cached = loadSaved()
+    if cached then return cached end
+    log("Cache miss/expired → fetching servers…")
     local fresh = fetchServerList(5, 100)
     if #fresh > 0 then
         saveServers(fresh)
     else
-        warn("[RiftScanner] No servers fetched!")
+        warn("[RiftScanner] fetched zero servers")
     end
     return fresh
 end
 
--- Scan workspace for the target rift
+-- find and notify
 local function checkForRift()
+    local rendered = safeWait(workspace, "Rendered", 10)
+    local RiftFolder = rendered and safeWait(rendered, "Rifts", 10)
     if not RiftFolder then
-        warn("[RiftScanner] RiftFolder not found")
-        return false
+        warn("[RiftScanner] no RiftFolder"); return false
     end
+
     for _, rift in ipairs(RiftFolder:GetChildren()) do
-        if rift.Name == TargetRift and rift:FindFirstChild("EggPlatformSpawn") then
-            local display    = rift:FindFirstChild("Display")
-            local surfaceGui = display and display:FindFirstChild("SurfaceGui")
-            local timer      = surfaceGui and surfaceGui:FindFirstChild("Timer")
-            local timeLeft   = timer and timer.Text or "???"
-            log("Rift FOUND! Time left:", timeLeft)
+        if rift.Name == TargetRift
+        and rift:FindFirstChild("EggPlatformSpawn")
+        then
+            local disp = rift:FindFirstChild("Display")
+            local gui  = disp and disp:FindFirstChild("SurfaceGui")
+            local tm   = gui and gui:FindFirstChild("Timer")
+            local timeLeft = (tm and tm.Text) or "???"
+            log("Rift FOUND! Time:", timeLeft)
             sendRiftFoundWebhook(timeLeft)
             repeat task.wait(1) until not rift:IsDescendantOf(workspace)
-            log("Rift despawned; restarting search")
+            log("Rift despawned; restarting")
             return true
         end
     end
     return false
 end
 
--- Auto‑hop through the server list, handling full‑server errors
+-- hop through list
 local function autoHop()
     local list = getServerList()
-    if #list == 0 then
-        warn("[RiftScanner] Empty server list; retrying in 5s")
+    if type(list)~="table" or #list == 0 then
+        warn("[RiftScanner] no servers to hop; retry in 5s")
         task.wait(5)
         return autoHop()
     end
 
-    for i, id in ipairs(list) do
-        log("Teleporting to server", id, "("..i.."/"..#list..")")
-        local success, err = pcall(function()
+    for i,id in ipairs(list) do
+        log("Teleporting to", id, "("..i.."/"..#list..")")
+        local ok, err = pcall(function()
             TeleportService:TeleportToPlaceInstance(placeId, id, LocalPlayer)
         end)
-        if success then
-            log("Teleport initiated to", id)
-            return  -- quit script after teleport
-        elseif tostring(err):find("TeleportGameFull") then
-            warn("[RiftScanner] Server full:", id)
+        if ok then
+            log("→ teleport started:", id)
+            return
+        elseif tostring(err):match("TeleportGameFull") then
+            warn("[RiftScanner] full:", id)
         else
-            warn("[RiftScanner] Teleport error:", err)
+            warn("[RiftScanner] teleport error:", err)
         end
     end
 
-    -- All servers failed → clear cache and retry
-    warn("[RiftScanner] All servers failed; clearing cache and retrying")
+    warn("[RiftScanner] all attempts failed; clearing cache")
     pcall(delfile, SERVER_FILE)
     task.wait(5)
     return autoHop()
 end
 
--- Main entrypoint
+-- entrypoint
 local function start()
     log("Started; looking for Rift:", TargetRift)
-    if not game:IsLoaded() then
-        game.Loaded:Wait()
-    end
+    if not game:IsLoaded() then game.Loaded:Wait() end
     task.wait(5)
-
     if not checkForRift() then
-        log("No Rift found; hopping servers")
+        log("No Rift; hopping servers")
         autoHop()
     end
 end
