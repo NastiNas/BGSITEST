@@ -19,7 +19,7 @@ local Players     = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TeleportSvc = game:GetService("TeleportService")
 
-local LocalPlayer = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local RiftFolder  = workspace:WaitForChild("Rendered"):WaitForChild("Rifts")
 local PLACE_ID    = game.PlaceId
 
