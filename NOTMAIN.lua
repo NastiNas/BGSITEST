@@ -5,7 +5,7 @@ local TARGET_RIFTS = {["man-egg"] = true, ["event-2"] = true}
 local MAX_PAGES = 5
 local MAX_PLAYERS = 10
 local REFRESH_INTERVAL = 600
-local WATCHDOG_TIME = 40
+local WD_TIME = 40
 
 -- WEBHOOK
 local WH_PART1 = "1363337687406346391/wYzR7TTmB1coshGGzcOjQUQ"
