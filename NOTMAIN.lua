@@ -220,11 +220,14 @@ end
 
 -- Watchdog
 task.spawn(function()
-    task.wait(WATCHDOG_TIME)
-    print("→ Watchdog running…")
-    if not scanForRift() and not loadingServers then
-        print("→ No Rift & idle, forcing autoHop")
-        autoHop()
+    task.wait(WD_TIME)
+
+    while true do
+        if not ActiveRift or not LoadingServers then
+            AutoHop()
+            task.wait(5)
+        end
+        task.wait(1)
     end
 end)
 
