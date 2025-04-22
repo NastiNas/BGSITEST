@@ -231,7 +231,7 @@ task.spawn(function()
 
     while true do
         if not ActiveRift or not LoadingServers then
-            AutoHop()
+            autoHop()
             task.wait(5)
         end
         task.wait(1)
