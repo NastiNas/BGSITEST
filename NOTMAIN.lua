@@ -258,5 +258,6 @@ end)
 task.wait(5)
 
 if not scanForRift() then
+    print("["..LocalPlayer.Name.."] not here gng!")
     autoHop()
 end
