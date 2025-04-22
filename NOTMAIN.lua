@@ -1,6 +1,4 @@
---!strict
-
-queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/RiftHunter.lua'))()")
+queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/YOURUSERNAME/YOURREPO/main/RiftHop.lua'))()")
 
 local TARGET_RIFTS = { "man-egg", "event-2" }
 local MAX_PAGES = 5
