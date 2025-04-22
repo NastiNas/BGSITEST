@@ -19,6 +19,7 @@ local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local RiftFolder = workspace:WaitForChild("Rendered"):WaitForChild("Rifts")
 local PLACE_ID = game.PlaceId
+local ActiveRift = false
 
 -- CACHE
 local CACHE_DIR = "riftHopCache"
@@ -134,6 +135,12 @@ local function scanForRift(): boolean
             sendWebhook(rift, despawn, luckVal, height)
             showRiftGui(rift, despawn, luckVal)
 
+            ActiveRift = true
+            task.spawn(function()
+                repeat task.wait(1) until not rift.Parent or not rift:IsDescendantOf(workspace)
+                ActiveRift = false
+            end)
+            
             return true
         end
     end
