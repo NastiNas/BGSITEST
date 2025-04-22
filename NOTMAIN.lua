@@ -15,7 +15,7 @@ local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
-local RiftFolder = workspace:WaitForChild("Worlds"):WaitForChild("The Overworld"):WaitForChild("Rift")
+local RiftFolder  = workspace:WaitForChild("Rendered"):WaitForChild("Rifts")
 local PLACE_ID = game.PlaceId
 
 local CACHE_DIR = "riftHopCache"
