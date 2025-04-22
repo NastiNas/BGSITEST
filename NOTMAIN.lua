@@ -19,7 +19,7 @@ local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local RiftFolder = workspace:WaitForChild("Rendered"):WaitForChild("Rifts")
 local PLACE_ID = game.PlaceId
-local ActiveRift = false
+local ActiveRift = true
 
 -- CACHE
 local CACHE_DIR = "riftHopCache"
@@ -242,7 +242,7 @@ task.wait(5)
 
 
 if not scanForRift() then
-    print("["..LocalPlayer.Name.."] not here gng!")
+    local ActiveRift = false
     autoHop()
 end
 
