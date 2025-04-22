@@ -122,7 +122,8 @@ end
 local function scanForRift(): boolean
     print("["..LocalPlayer.Name.."] → scanning for Rift…")
     for _, rift in ipairs(RiftFolder:GetChildren()) do
-        if TARGET_RIFTS[rift.Name] and rift:FindFirstChild("EggPlatformSpawn") then
+        if TARGET_RIFTS[rift.Name] then
+            ActiveRift = true
             print("["..LocalPlayer.Name.."] → FOUND Rift: "..rift.Name)
             local luckLbl = rift:FindFirstChild("Display")
                             and rift.Display:FindFirstChild("SurfaceGui")
@@ -135,7 +136,7 @@ local function scanForRift(): boolean
             sendWebhook(rift, despawn, luckVal, height)
             showRiftGui(rift, despawn, luckVal)
 
-            ActiveRift = true
+            
             task.spawn(function()
                 repeat task.wait(1) until not rift.Parent or not rift:IsDescendantOf(workspace)
                 ActiveRift = false
