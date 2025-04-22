@@ -233,6 +233,14 @@ repeat task.wait() until game:IsLoaded()
 
 task.wait(5)
 
+
+
+
+if not scanForRift() then
+    print("["..LocalPlayer.Name.."] not here gng!")
+    autoHop()
+end
+
 task.spawn(function()
     task.wait(WD_TIME)
 
@@ -244,9 +252,3 @@ task.spawn(function()
         task.wait(1)
     end
 end)
-
-
-if not scanForRift() then
-    print("["..LocalPlayer.Name.."] not here gng!")
-    autoHop()
-end
