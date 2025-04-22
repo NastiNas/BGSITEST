@@ -225,23 +225,13 @@ local function autoHop()
     safeTeleport(choice)
 end
 
--- Watchdog
-task.spawn(function()
-    task.wait(WD_TIME)
 
-    while true do
-        if not ActiveRift or not loadingServers then
-            autoHop()
-            task.wait(5)
-        end
-        task.wait(1)
-    end
-end)
 
 -- MAIN
 print("["..LocalPlayer.Name.."] script started!")
 repeat task.wait() until game:IsLoaded()
-task.wait(1)
+
+task.wait(5)
 
 task.spawn(function()
     task.wait(WD_TIME)
@@ -255,7 +245,6 @@ task.spawn(function()
     end
 end)
 
-task.wait(5)
 
 if not scanForRift() then
     print("["..LocalPlayer.Name.."] not here gng!")
