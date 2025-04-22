@@ -137,7 +137,7 @@ local function scanForRift(): boolean
             local height = rift:GetPivot().Position.Y
             
             sendWebhook(rift, despawn, luckVal, height)
-            showRiftGui(rift, despawn, luckVal)
+            showRiftGui(rift, despawnLocal, luckVal)
 
             
             
