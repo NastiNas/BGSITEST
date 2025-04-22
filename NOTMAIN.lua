@@ -230,7 +230,7 @@ task.spawn(function()
     task.wait(WD_TIME)
 
     while true do
-        if not ActiveRift or not LoadingServers then
+        if not ActiveRift or not loadingServers then
             autoHop()
             task.wait(5)
         end
