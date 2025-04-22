@@ -1,7 +1,7 @@
 queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/NOTMAIN.lua'))()")
 
 -- CONFIG
-local TARGET_RIFTS = {["man-egg"] = true, ["event-2"] = true}
+local TARGET_RIFTS = {["man-egg"] = true, ["----"] = true}
 local MAX_PAGES = 5
 local MAX_PLAYERS = 10
 local REFRESH_INTERVAL = 600
