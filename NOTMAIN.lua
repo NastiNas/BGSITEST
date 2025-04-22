@@ -245,6 +245,8 @@ end
 task.spawn(function()
     task.wait(WD_TIME)
 
+    print("fuck")
+
     while true do
         if not ActiveRift or not loadingServers then
             autoHop()
