@@ -129,6 +129,8 @@ local function scanForRift(): boolean
                             and rift.Display:FindFirstChild("SurfaceGui")
                             and rift.Display.SurfaceGui:FindFirstChild("Icon")
                             and rift.Display.SurfaceGui.Icon:FindFirstChild("Luck")
+
+            print("Dont you dare 1")
             local luckVal = (luckLbl and luckLbl.Text) or "???"
             local despawn = parseDespawnTime(rift)
             local height = rift:GetPivot().Position.Y
@@ -136,12 +138,13 @@ local function scanForRift(): boolean
             sendWebhook(rift, despawn, luckVal, height)
             showRiftGui(rift, despawn, luckVal)
 
+            print("Dont you dare 2")
             
             task.spawn(function()
                 repeat task.wait(1) until not rift.Parent or not rift:IsDescendantOf(workspace)
                 ActiveRift = false
             end)
-            
+            print("Dont you dare 3")
             return true
         end
     end
