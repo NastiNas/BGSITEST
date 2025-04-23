@@ -1,8 +1,11 @@
+-- FINAL SCRIPT STARTS HERE
+--!strict
+
 queue_on_teleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/NastiNas/BGSITEST/refs/heads/main/NOTMAIN.lua'))()")
 
 -- CONFIG
-local TARGET_RIFTS = {["man-egg"] = true, ["----"] = true}
-local MAX_PAGES = 5
+local TARGET_RIFTS = {["man-egg"] = true, ["---"] = true}
+local MAX_PAGES = 20
 local MAX_PLAYERS = 10
 local REFRESH_INTERVAL = 600
 local WD_TIME = 40
@@ -28,17 +31,16 @@ local TIMESTAMP_FILE = CACHE_DIR.."/timestamp.txt"
 local loadingServers = false
 local Attempted = false
 
--- make sure folder/files exist
+-- ensure cache exists
 pcall(function()
     if not isfolder(CACHE_DIR) then makefolder(CACHE_DIR) end
     if not isfile(SERVERS_FILE) then writefile(SERVERS_FILE, "[]") end
     if not isfile(TIMESTAMP_FILE) then writefile(TIMESTAMP_FILE, "0") end
 end)
 
--- Rift detection GUI
-local function showRiftGui(rift: Model, despawnTime: number, luckValue: string)
+-- Rift GUI
+local function showRiftGui(rift: Model, despawnTime: string, luckValue: string)
     local y = math.floor(rift:GetPivot().Position.Y)
-
     local gui = Instance.new("ScreenGui")
     gui.Name = "RiftAlert"
     gui.ResetOnSpawn = false
@@ -60,7 +62,7 @@ local function showRiftGui(rift: Model, despawnTime: number, luckValue: string)
     layout.Padding = UDim.new(0, 4)
     layout.Parent = frame
 
-    local function makeLabel(txt: string)
+    local function makeLabel(txt)
         local lbl = Instance.new("TextLabel")
         lbl.Size = UDim2.new(1, -16, 0, 20)
         lbl.BackgroundTransparency = 1
@@ -74,10 +76,9 @@ local function showRiftGui(rift: Model, despawnTime: number, luckValue: string)
     makeLabel("Player: "..LocalPlayer.Name)
     makeLabel("Y Height: "..y)
     makeLabel("Luck: "..luckValue)
-    makeLabel("Despawn: <t:"..despawnTime..":R>")
+    makeLabel("Despawn: "..despawnTime)
 end
 
--- Time parser
 local function parseDespawnTime(rift)
     local timerLbl = rift:FindFirstChild("Display")
                      and rift.Display:FindFirstChild("SurfaceGui")
@@ -90,63 +91,48 @@ local function parseDespawnTime(rift)
     return os.time() + (num * mult)
 end
 
--- Webhook
 local function sendWebhook(rift, despawnUnix, luckValue, height)
     local payload = {
         embeds = {{
             title = rift.Name.." Rift Found!",
-            description = "Rift detected by **"..LocalPlayer.Name.."**\n"
-                .."Height: "..math.floor(height).."m\n"
-                .."Luck: "..luckValue.."\n"
-                .."Despawn: <t:"..despawnUnix..":R>\n"
-                .."[Join](https://www.roblox.com/games/"..game.PlaceId.."#!/server?id="..game.JobId..")\n"
+            description = "Rift detected by **"..LocalPlayer.Name.."**
+"
+                .."Height: "..math.floor(height).."m
+"
+                .."Luck: "..luckValue.."
+"
+                .."Despawn: <t:"..despawnUnix..":R>
+"
+                .."[Join](https://www.roblox.com/games/"..game.PlaceId.."#!/server?id="..game.JobId..")
+"
                 .."[Alt Link](https://www.roblox.com/users/"..LocalPlayer.UserId.."/profile)",
             color = 0x00FF00
         }}
     }
-
     local json = HttpService:JSONEncode(payload)
     local req = (http and http.request) or request or (syn and syn.request)
     if req then
-        req({
-            Url = WEBHOOK_URL,
-            Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = json
-        })
-    else
-        warn("["..LocalPlayer.Name.."] → no HTTP method available")
+        req({ Url = WEBHOOK_URL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = json })
     end
 end
 
--- Scan for Rift
 local function scanForRift(): boolean
     print("["..LocalPlayer.Name.."] → scanning for Rift…")
     for _, rift in ipairs(RiftFolder:GetChildren()) do
         if TARGET_RIFTS[rift.Name] then
             ActiveRift = true
             print("["..LocalPlayer.Name.."] → FOUND Rift: "..rift.Name)
-            local luckLbl = rift:FindFirstChild("Display")
-                            and rift.Display:FindFirstChild("SurfaceGui")
-                            and rift.Display.SurfaceGui:FindFirstChild("Icon")
-                            and rift.Display.SurfaceGui.Icon:FindFirstChild("Luck")
-
-            
+            local luckLbl = rift:FindFirstChild("Display") and rift.Display:FindFirstChild("SurfaceGui") and rift.Display.SurfaceGui:FindFirstChild("Icon") and rift.Display.SurfaceGui.Icon:FindFirstChild("Luck")
             local luckVal = (luckLbl and luckLbl.Text) or "???"
             local despawn = parseDespawnTime(rift)
-            local despawnLocal = rift:FindFirstChild("Display").SurfaceGui.Timer.Text
+            local despawnText = rift.Display.SurfaceGui.Timer.Text
             local height = rift:GetPivot().Position.Y
-            
             sendWebhook(rift, despawn, luckVal, height)
-            showRiftGui(rift, despawnLocal, luckVal)
-
-            
-            
+            showRiftGui(rift, despawnText, luckVal)
             task.spawn(function()
                 repeat task.wait(1) until not rift.Parent or not rift:IsDescendantOf(workspace)
                 ActiveRift = false
             end)
-           
             return true
         end
     end
@@ -154,29 +140,23 @@ local function scanForRift(): boolean
     return false
 end
 
--- Safe teleport
 local function safeTeleport(serverId)
     print("["..LocalPlayer.Name.."] → teleporting to", serverId)
-    local ok, err = pcall(function()
-        TeleportService:TeleportToPlaceInstance(PLACE_ID, serverId)
-    end)
+    local ok, err = pcall(function() TeleportService:TeleportToPlaceInstance(PLACE_ID, serverId) end)
     if not ok then
         warn("Teleport failed:", err)
         pcall(function() TeleportService:Teleport(PLACE_ID) end)
     end
 end
 
--- Fetch fresh servers
 local function fetchServers(): {string}
     loadingServers = true
     print("["..LocalPlayer.Name.."] → fetching server list")
     local servers, cursor = {}, ""
-    for page = 1, MAX_PAGES do
-        print(("→ fetching page %d..."):format(page))
-        local url = ("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100%s"):format(
-            PLACE_ID,
-            cursor ~= "" and "&cursor="..cursor or ""
-        )
+    local foundValid = false
+    while not foundValid do
+        local url = ("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100%s"):format(
+            PLACE_ID, cursor ~= "" and "&cursor="..cursor or "")
         local success, resp = pcall(function()
             return ((http and http.request) or request or (syn and syn.request))({Url = url})
         end)
@@ -185,12 +165,13 @@ local function fetchServers(): {string}
             for _, server in ipairs(data.data or {}) do
                 if tonumber(server.playing) <= MAX_PLAYERS then
                     table.insert(servers, server.id)
+                    foundValid = true
                 end
             end
             cursor = data.nextPageCursor or ""
             if cursor == "" then break end
         else
-            warn("→ failed page", page)
+            warn("→ failed to fetch servers")
         end
         task.wait(1)
     end
@@ -200,23 +181,16 @@ local function fetchServers(): {string}
     return servers
 end
 
--- Load cached servers
 local function getServerList()
     print("→ loading cached server list")
     local lastTime = tonumber(readfile(TIMESTAMP_FILE)) or 0
-    if os.time() - lastTime >= REFRESH_INTERVAL then
-        return fetchServers()
-    end
-
+    if os.time() - lastTime >= REFRESH_INTERVAL then return fetchServers() end
     local raw = readfile(SERVERS_FILE)
     local ok, tbl = pcall(HttpService.JSONDecode, HttpService, raw)
-    if ok and type(tbl) == "table" and #tbl > 0 then
-        return tbl
-    end
+    if ok and type(tbl) == "table" and #tbl > 0 then return tbl end
     return fetchServers()
 end
 
--- AutoHop
 local function autoHop()
     print("→ autoHop()")
     local servers = getServerList()
@@ -232,33 +206,18 @@ local function autoHop()
     Attempted = true
 end
 
-
-
 -- MAIN
 print("["..LocalPlayer.Name.."] script started!")
 repeat task.wait() until game:IsLoaded()
-
 task.wait(5)
-
-
-
-
-if not scanForRift() then
-    local ActiveRift = false
-    autoHop()
-end
+if not scanForRift() then ActiveRift = false autoHop() end
 
 task.spawn(function()
     task.wait(WD_TIME)
-
-    print("fuck")
-
     while true do
-        if not ActiveRift or not loadingServers then
-            if Attempted then
-                autoHop()
-                task.wait(5)
-            end
+        if not ActiveRift and not loadingServers and Attempted then
+            autoHop()
+            task.wait(5)
         end
         task.wait(1)
     end
