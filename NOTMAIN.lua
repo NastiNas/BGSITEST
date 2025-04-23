@@ -26,6 +26,7 @@ local CACHE_DIR = "riftHopCache"
 local SERVERS_FILE = CACHE_DIR.."/servers.json"
 local TIMESTAMP_FILE = CACHE_DIR.."/timestamp.txt"
 local loadingServers = false
+local Attempted = false
 
 -- make sure folder/files exist
 pcall(function()
@@ -228,6 +229,7 @@ local function autoHop()
     writefile(SERVERS_FILE, HttpService:JSONEncode(servers))
     print("→ hopping to", choice, "(remaining:", #servers, ")")
     safeTeleport(choice)
+    Attempted = true
 end
 
 
@@ -253,8 +255,10 @@ task.spawn(function()
 
     while true do
         if not ActiveRift or not loadingServers then
-            autoHop()
-            task.wait(5)
+            if Attempted then
+                autoHop()
+                task.wait(5)
+            end
         end
         task.wait(1)
     end
